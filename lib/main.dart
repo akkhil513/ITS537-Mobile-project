@@ -1,321 +1,268 @@
 import 'package:flutter/material.dart';
 
+/// ITS-537 Weeks 7-8 Lab: Gesture-Controlled Interface
+/// Akhil Kumar Gollapalli — University of the Cumberlands
+///
+/// Demonstrates three gesture interactions using GestureDetector:
+///   1. Tap        -> increments rep counter
+///   2. Long Press -> resets the counter (with confirmation feedback)
+///   3. Horizontal Swipe -> switches between exercise cards
+
 void main() {
-  runApp(const FitnessApp());
+  runApp(const GestureApp());
 }
 
-class FitnessApp extends StatelessWidget {
-  const FitnessApp({super.key});
+class GestureApp extends StatelessWidget {
+  const GestureApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'FitTrack',
+      title: 'Gesture Workout',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0)),
         useMaterial3: true,
       ),
-      home: const HomeScreen(),
+      home: const GestureWorkoutScreen(),
     );
   }
 }
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-  static const List<Map<String, dynamic>> _workouts = [
-    {'icon': Icons.directions_run, 'label': 'Cardio',   'color': Color(0xFFE53935)},
-    {'icon': Icons.fitness_center, 'label': 'Strength', 'color': Color(0xFF1565C0)},
-    {'icon': Icons.self_improvement,'label': 'Yoga',    'color': Color(0xFF2E7D32)},
-    {'icon': Icons.pool,            'label': 'Swimming','color': Color(0xFF00838F)},
+class GestureWorkoutScreen extends StatefulWidget {
+  const GestureWorkoutScreen({super.key});
+
+  @override
+  State<GestureWorkoutScreen> createState() => _GestureWorkoutScreenState();
+}
+
+class _GestureWorkoutScreenState extends State<GestureWorkoutScreen> {
+  // ── Exercise data ──────────────────────────────────────────────────────
+  final List<Map<String, dynamic>> _exercises = [
+    {'name': 'Push Ups', 'icon': Icons.fitness_center, 'color': const Color(0xFF1565C0)},
+    {'name': 'Squats', 'icon': Icons.accessibility_new, 'color': const Color(0xFF2E7D32)},
+    {'name': 'Plank', 'icon': Icons.self_improvement, 'color': const Color(0xFFE53935)},
+    {'name': 'Lunges', 'icon': Icons.directions_walk, 'color': const Color(0xFF6A1B9A)},
   ];
+
+  int _currentIndex = 0;     // Which exercise card is shown (swipe controls this)
+  int _repCount = 0;         // Tap increments this
+  bool _justReset = false;   // Brief visual feedback flag for long press
+  double _dragAccumulator = 0; // Tracks cumulative horizontal drag distance
+
+  // ── GESTURE 1: TAP — increment reps ───────────────────────────────────
+  void _handleTap() {
+    setState(() {
+      _repCount++;
+      _justReset = false;
+    });
+  }
+
+  // ── GESTURE 2: LONG PRESS — reset counter ─────────────────────────────
+  void _handleLongPress() {
+    setState(() {
+      _repCount = 0;
+      _justReset = true;
+    });
+    // Refinement: brief visual confirmation that fades after 600ms
+    // so the user gets clear feedback that the reset registered.
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (mounted) setState(() => _justReset = false);
+    });
+  }
+
+  // ── GESTURE 3: HORIZONTAL SWIPE — switch exercise card ────────────────
+  // Refinement: initial implementation relied on drag velocity
+  // (onHorizontalDragEnd + primaryVelocity), but testing on Flutter Web
+  // showed mouse/trackpad input often reports a velocity of zero even
+  // for a clear drag, making the gesture unreliable in Chrome. This was
+  // replaced with cumulative distance tracking via onHorizontalDragUpdate,
+  // which works consistently across both touch and mouse input.
+  void _handleDragUpdate(DragUpdateDetails details) {
+    _dragAccumulator += details.delta.dx;
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    const distanceThreshold = 60.0; // pixels — filters out accidental taps/jitter
+
+    if (_dragAccumulator <= -distanceThreshold) {
+      // Dragged left -> next exercise
+      setState(() {
+        _currentIndex = (_currentIndex + 1) % _exercises.length;
+        _repCount = 0;
+      });
+    } else if (_dragAccumulator >= distanceThreshold) {
+      // Dragged right -> previous exercise
+      setState(() {
+        _currentIndex = (_currentIndex - 1 + _exercises.length) % _exercises.length;
+        _repCount = 0;
+      });
+    }
+    _dragAccumulator = 0; // reset for the next gesture
+  }
+
   @override
   Widget build(BuildContext context) {
+    final exercise = _exercises[_currentIndex];
+    final Color exColor = exercise['color'] as Color;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1565C0),
         foregroundColor: Colors.white,
-        title: const Text('FitTrack', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+        title: const Text('Gesture Workout', style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF1565C0), Color(0xFF42A5F5)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Welcome back, Akhil!', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 6),
-                  const Text("Ready for today's workout?", style: TextStyle(color: Colors.white70, fontSize: 14)),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF1565C0),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkoutTrackerScreen())),
-                    child: const Text('Start Workout', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 28),
-            const Text('Workout Categories', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
-            const SizedBox(height: 14),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2, crossAxisSpacing: 14, mainAxisSpacing: 14, childAspectRatio: 1.3,
-              ),
-              itemCount: _workouts.length,
-              itemBuilder: (context, index) {
-                final w = _workouts[index];
-                return _CategoryCard(
-                  icon: w['icon'] as IconData,
-                  label: w['label'] as String,
-                  color: w['color'] as Color,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => WorkoutTrackerScreen(workoutType: w['label'] as String))),
-                );
-              },
-            ),
-            const SizedBox(height: 28),
-            const Text('This Week', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(child: _StatCard(label: 'Workouts', value: '3', icon: Icons.fitness_center, color: const Color(0xFF1565C0))),
-                const SizedBox(width: 14),
-                Expanded(child: _StatCard(label: 'Calories', value: '840', icon: Icons.local_fire_department, color: const Color(0xFFE53935))),
-                const SizedBox(width: 14),
-                Expanded(child: _StatCard(label: 'Minutes', value: '120', icon: Icons.timer_outlined, color: const Color(0xFF2E7D32))),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CategoryCard extends StatelessWidget {
-  const _CategoryCard({required this.icon, required this.label, required this.color, required this.onTap});
-  final IconData icon; final String label; final Color color; final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE3E8F0)),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-              child: Icon(icon, color: color, size: 28),
-            ),
-            const SizedBox(height: 8),
-            Text(label, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: color)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({required this.label, required this.value, required this.icon, required this.color});
-  final String label; final String value; final IconData icon; final Color color;
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
-      decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE3E8F0)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(height: 6),
-          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-          Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-        ],
-      ),
-    );
-  }
-}
-
-class WorkoutTrackerScreen extends StatefulWidget {
-  const WorkoutTrackerScreen({super.key, this.workoutType = 'Strength'});
-  final String workoutType;
-  @override
-  State<WorkoutTrackerScreen> createState() => _WorkoutTrackerScreenState();
-}
-
-class _WorkoutTrackerScreenState extends State<WorkoutTrackerScreen> {
-  final List<String> _exercises = ['Push Ups', 'Squats', 'Plank (secs)', 'Lunges'];
-  late List<int> _reps;
-  bool _workoutStarted = false;
-  bool _workoutComplete = false;
-  String _statusMessage = 'Press Start to begin your workout!';
-
-  @override
-  void initState() {
-    super.initState();
-    _reps = List.filled(_exercises.length, 0);
-  }
-
-  void _handleMainButton() {
-    setState(() {
-      if (!_workoutStarted) {
-        _workoutStarted = true;
-        _statusMessage = "Great! Log your reps for each exercise 💪";
-      } else if (!_workoutComplete) {
-        _workoutComplete = true;
-        final total = _reps.fold(0, (a, b) => a + b);
-        _statusMessage = "Workout complete! Total reps: $total 🎉";
-      } else {
-        _reps = List.filled(_exercises.length, 0);
-        _workoutStarted = false;
-        _workoutComplete = false;
-        _statusMessage = 'Press Start to begin your workout!';
-      }
-    });
-  }
-
-  void _incrementRep(int index) {
-    if (!_workoutStarted || _workoutComplete) return;
-    setState(() {
-      _reps[index]++;
-      _statusMessage = "${_exercises[index]}: ${_reps[index]} reps";
-    });
-  }
-
-  void _decrementRep(int index) {
-    if (!_workoutStarted || _workoutComplete) return;
-    setState(() { if (_reps[index] > 0) _reps[index]--; });
-  }
-
-  String get _buttonLabel {
-    if (!_workoutStarted) return 'Start Workout';
-    if (!_workoutComplete) return 'Finish Workout';
-    return 'Start New Workout';
-  }
-
-  Color get _buttonColor {
-    if (!_workoutStarted) return const Color(0xFF1565C0);
-    if (!_workoutComplete) return const Color(0xFF2E7D32);
-    return const Color(0xFF6A1B9A);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1565C0),
-        foregroundColor: Colors.white,
-        title: Text('${widget.workoutType} Tracker', style: const TextStyle(fontWeight: FontWeight.bold)),
-        centerTitle: true,
-        leading: IconButton(icon: const Icon(Icons.arrow_back_ios), onPressed: () => Navigator.pop(context)),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
+            // ── Instructions banner ─────────────────────────────────────
+            Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: _workoutComplete ? const Color(0xFF2E7D32).withOpacity(0.1) : const Color(0xFF1565C0).withOpacity(0.08),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: _workoutComplete ? const Color(0xFF2E7D32).withOpacity(0.4) : const Color(0xFF1565C0).withOpacity(0.2),
-                ),
+                color: const Color(0xFF1565C0).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Text(_statusMessage,
+              child: const Text(
+                'Tap to count reps  •  Long-press to reset  •  Swipe to switch exercise',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
-                  color: _workoutComplete ? const Color(0xFF2E7D32) : const Color(0xFF1565C0)),
+                style: TextStyle(fontSize: 13, color: Color(0xFF1565C0), fontWeight: FontWeight.w600),
               ),
             ),
-            const SizedBox(height: 20),
+
+            const SizedBox(height: 30),
+
+            // ── Page indicator dots ─────────────────────────────────────
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(_exercises.length, (i) {
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: i == _currentIndex ? 22 : 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: i == _currentIndex ? exColor : Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                );
+              }),
+            ),
+
+            const SizedBox(height: 30),
+
+            // ── Main Gesture Card ────────────────────────────────────────
             Expanded(
-              child: ListView.separated(
-                itemCount: _exercises.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    decoration: BoxDecoration(
-                      color: Colors.white, borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFE3E8F0)),
+              child: GestureDetector(
+                onTap: _handleTap,
+                onLongPress: _handleLongPress,
+                onHorizontalDragUpdate: _handleDragUpdate,
+                onHorizontalDragEnd: _handleDragEnd,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: _justReset ? exColor.withOpacity(0.15) : Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: _justReset ? exColor : const Color(0xFFE3E8F0),
+                      width: _justReset ? 2 : 1,
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(_exercises[index], style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                        Row(
-                          children: [
-                            GestureDetector(
-                              onTap: () => _decrementRep(index),
-                              child: Container(
-                                width: 32, height: 32,
-                                decoration: BoxDecoration(color: const Color(0xFFE3E8F0), borderRadius: BorderRadius.circular(8)),
-                                child: const Icon(Icons.remove, size: 16),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text('${_reps[index]}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1565C0))),
-                            const SizedBox(width: 12),
-                            GestureDetector(
-                              onTap: () => _incrementRep(index),
-                              child: Container(
-                                width: 32, height: 32,
-                                decoration: BoxDecoration(color: const Color(0xFF1565C0), borderRadius: BorderRadius.circular(8)),
-                                child: const Icon(Icons.add, size: 16, color: Colors.white),
-                              ),
-                            ),
-                          ],
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.06),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: exColor.withOpacity(0.1),
+                          shape: BoxShape.circle,
                         ),
-                      ],
-                    ),
-                  );
-                },
+                        child: Icon(exercise['icon'] as IconData, size: 56, color: exColor),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        exercise['name'] as String,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: exColor,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      Text(
+                        '$_repCount',
+                        style: TextStyle(
+                          fontSize: 64,
+                          fontWeight: FontWeight.bold,
+                          color: exColor,
+                        ),
+                      ),
+                      const Text(
+                        'reps',
+                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 24),
+                      AnimatedOpacity(
+                        opacity: _justReset ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Text(
+                          'Reset!',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: exColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
+
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity, height: 52,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _buttonColor, foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            Text(
+              'Exercise ${_currentIndex + 1} of ${_exercises.length}',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 12),
+
+            // Refinement: added explicit prev/next buttons as a fallback
+            // navigation path. Testing showed some users on trackpads/mice
+            // didn't realize a horizontal drag was possible, so buttons
+            // make the same action available through a tap as well.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  onPressed: () => setState(() {
+                    _currentIndex = (_currentIndex - 1 + _exercises.length) % _exercises.length;
+                    _repCount = 0;
+                  }),
+                  icon: const Icon(Icons.chevron_left),
+                  style: IconButton.styleFrom(backgroundColor: const Color(0xFFE3E8F0)),
                 ),
-                onPressed: _handleMainButton,
-                child: Text(_buttonLabel, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
+                const SizedBox(width: 16),
+                IconButton(
+                  onPressed: () => setState(() {
+                    _currentIndex = (_currentIndex + 1) % _exercises.length;
+                    _repCount = 0;
+                  }),
+                  icon: const Icon(Icons.chevron_right),
+                  style: IconButton.styleFrom(backgroundColor: const Color(0xFFE3E8F0)),
+                ),
+              ],
             ),
           ],
         ),
